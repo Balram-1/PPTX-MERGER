@@ -1,183 +1,563 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>PPTX Merger</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PPTFusion - Merge Presentations Seamlessly</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: Arial; padding: 20px; }
-        #dropzone {
-            border: 2px dashed #aaa;
-            padding: 30px;
-            text-align: center;
-            margin-bottom: 20px;
+        :root {
+            --bg-color: #080a0f;
+            --surface-color: rgba(255, 255, 255, 0.02);
+            --surface-border: rgba(255, 255, 255, 0.08);
+            --primary: #6366f1;
+            --primary-glow: rgba(99, 102, 241, 0.4);
+            --secondary: #a855f7;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
         }
-        .file {
-            padding: 10px;
-            border: 1px solid #ccc;
-            margin: 5px;
-            cursor: move;
-            background: #f9f9f9;
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
         }
-        .file.dragging {
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        /* Ambient background blobs */
+        .blob {
+            position: absolute;
+            filter: blur(120px);
             opacity: 0.5;
-            background: #e0e0e0;
+            z-index: -1;
+            border-radius: 50%;
+            pointer-events: none;
         }
-        #fileCount {
-            margin: 10px 0;
-            font-size: 14px;
-            color: #666;
+        .blob-1 {
+            width: 400px;
+            height: 400px;
+            background: rgba(99, 102, 241, 0.3);
+            top: -100px;
+            left: -100px;
+            animation: float 10s ease-in-out infinite alternate;
         }
-        button:disabled {
+        .blob-2 {
+            width: 500px;
+            height: 500px;
+            background: rgba(168, 85, 247, 0.2);
+            bottom: -150px;
+            right: -100px;
+            animation: float 12s ease-in-out infinite alternate-reverse;
+        }
+
+        @keyframes float {
+            0% { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(30px, 40px) scale(1.1); }
+        }
+
+        .container {
+            width: 100%;
+            max-width: 680px;
+            padding: 40px 20px;
+            z-index: 1;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 12px;
+            background: linear-gradient(135deg, #fff, #94a3b8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.02em;
+        }
+
+        header p {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            font-weight: 300;
+            max-width: 80%;
+            margin: 0 auto;
+        }
+
+        /* Dropzone */
+        .dropzone {
+            background: var(--surface-color);
+            border: 2px dashed var(--surface-border);
+            border-radius: 20px;
+            padding: 50px 30px;
+            text-align: center;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+            margin-bottom: 30px;
+            position: relative;
+        }
+
+        .dropzone:hover, .dropzone.dragover {
+            border-color: var(--primary);
+            background: rgba(99, 102, 241, 0.05);
+            box-shadow: 0 0 30px var(--primary-glow);
+        }
+
+        .drop-icon {
+            color: var(--primary);
+            margin-bottom: 15px;
+        }
+
+        .drop-icon svg {
+            width: 48px;
+            height: 48px;
+        }
+
+        .dropzone h3 {
+            font-size: 1.2rem;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        
+        .dropzone p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+        
+        .dropzone span.highlight {
+            color: var(--primary);
+            font-weight: 600;
+            text-decoration: underline;
+            text-underline-offset: 4px;
+        }
+
+        /* File List */
+        .file-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 30px;
+        }
+
+        .file-item {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--surface-border);
+            border-radius: 12px;
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            cursor: grab;
+            transition: transform 0.2s, background 0.2s, box-shadow 0.2s;
+            backdrop-filter: blur(8px);
+        }
+
+        .file-item:hover {
+            background: rgba(255, 255, 255, 0.06);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        .file-item:active {
+            cursor: grabbing;
+        }
+
+        .file-item.dragging {
+            opacity: 0.4;
+            background: rgba(255, 255, 255, 0.1);
+            transform: scale(0.98);
+        }
+
+        .grip-icon {
+            color: var(--text-muted);
             opacity: 0.6;
-            cursor: not-allowed;
+            display: flex;
         }
+
+        .grip-icon svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        .file-info {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            text-align: left;
+        }
+
+        .file-name {
+            font-weight: 500;
+            font-size: 1rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .file-ext {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            margin-top: 4px;
+        }
+
+        .remove-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 50%;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .remove-btn:hover {
+            background: rgba(239, 68, 68, 0.15);
+            color: #ef4444;
+        }
+
+        .remove-btn svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        /* Bottom Actions */
+        .actions {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .file-count {
+            font-size: 0.95rem;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .merge-btn {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 16px 40px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.2);
+        }
+
+        .merge-btn::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(135deg, var(--secondary), var(--primary));
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 1;
+        }
+
+        .merge-btn span, .merge-btn svg {
+            position: relative;
+            z-index: 2;
+        }
+
+        .merge-btn:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px rgba(99, 102, 241, 0.4);
+        }
+
+        .merge-btn:hover:not(:disabled)::before {
+            opacity: 1;
+        }
+
+        .merge-btn:disabled {
+            background: rgba(255, 255, 255, 0.08);
+            color: rgba(255, 255, 255, 0.3);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .loader {
+            display: none;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .merge-btn.loading .btn-text {
+            display: none;
+        }
+        
+        .merge-btn.loading .loader {
+            display: block;
+        }
+        
+        .merge-btn.loading svg {
+            display: none;
+        }
+
     </style>
 </head>
 <body>
 
-<h2>PPTX Merger (Local)</h2>
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
 
-<div id="dropzone">Drag & Drop PPTX files here</div>
-<div id="fileList"></div>
-<div id="fileCount"></div>
+    <div class="container">
+        <header>
+            <h1>PPTFusion</h1>
+            <p>Seamlessly upload, arrange, and combine your PowerPoint presentations.</p>
+        </header>
+        
+        <div class="upload-section">
+            <input type="file" id="fileInput" multiple accept=".pptx" style="display: none;">
+            <div id="dropzone" class="dropzone">
+                <div class="drop-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 4v16m8-8H4" />
+                    </svg>
+                </div>
+                <h3>Upload PPTX Files</h3>
+                <p>Drag & drop presentations here or <span class="highlight">browse files</span></p>
+            </div>
+        </div>
+        
+        <div id="fileList" class="file-list"></div>
+        
+        <div class="actions">
+            <div id="fileCount" class="file-count"></div>
+            <button id="mergeBtn" class="merge-btn" disabled onclick="submitFiles()">
+                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                <span class="btn-text">Merge Presentations</span>
+                <span class="loader"></span>
+            </button>
+        </div>
+    </div>
 
-<br>
-<button id="mergeBtn" onclick="submitFiles()">Merge</button>
+    <script>
+        const dropzone = document.getElementById("dropzone");
+        const fileInput = document.getElementById("fileInput");
+        const fileList = document.getElementById("fileList");
+        const fileCountDiv = document.getElementById("fileCount");
+        const mergeBtn = document.getElementById("mergeBtn");
+        
+        let filesArray = [];
 
-<script>
-let dropzone = document.getElementById("dropzone");
-let fileList = document.getElementById("fileList");
-
-let filesArray = [];
-
-dropzone.addEventListener("dragover", e => {
-    e.preventDefault();
-});
-
-dropzone.addEventListener("drop", e => {
-    e.preventDefault();
-    let files = Array.from(e.dataTransfer.files);
-
-    files.forEach(f => {
-        if (f.name.endsWith(".pptx")) {
-            filesArray.push(f);
-        }
-    });
-
-    renderFiles();
-});
-
-function renderFiles() {
-    fileList.innerHTML = "";
-
-    filesArray.forEach((file, index) => {
-        let div = document.createElement("div");
-        div.className = "file";
-        div.draggable = true;
-        div.innerText = file.name;
-
-        div.addEventListener("dragstart", () => {
-            div.classList.add("dragging");
+        // Dialog box file selection
+        dropzone.addEventListener("click", () => {
+            fileInput.click();
         });
 
-        div.addEventListener("dragend", () => {
-            div.classList.remove("dragging");
+        fileInput.addEventListener("change", (e) => {
+            handleFiles(Array.from(e.target.files));
+            fileInput.value = ""; // Reset input so same file can be selected again if removed
         });
 
-        fileList.appendChild(div);
-    });
+        // Drag and Drop file selection
+        dropzone.addEventListener("dragover", e => {
+            e.preventDefault();
+            dropzone.classList.add("dragover");
+        });
 
-    // Update file count
-    const countDiv = document.getElementById("fileCount");
-    if (filesArray.length > 0) {
-        countDiv.innerText = `Selected: ${filesArray.length} file(s)`;
-        document.getElementById("mergeBtn").disabled = false;
-    } else {
-        countDiv.innerText = "";
-        document.getElementById("mergeBtn").disabled = true;
-    }
-}
+        dropzone.addEventListener("dragleave", e => {
+            e.preventDefault();
+            dropzone.classList.remove("dragover");
+        });
 
-fileList.addEventListener("dragover", e => {
-    e.preventDefault();
-    const dragging = document.querySelector(".dragging");
-    const afterElement = getDragAfterElement(fileList, e.clientY);
+        dropzone.addEventListener("drop", e => {
+            e.preventDefault();
+            dropzone.classList.remove("dragover");
+            handleFiles(Array.from(e.dataTransfer.files));
+        });
 
-    if (afterElement == null) {
-        fileList.appendChild(dragging);
-    } else {
-        fileList.insertBefore(dragging, afterElement);
-    }
-
-    updateArray();
-});
-
-function getDragAfterElement(container, y) {
-    const elements = [...container.querySelectorAll(".file:not(.dragging)")];
-
-    return elements.reduce((closest, child) => {
-        const box = child.getBoundingClientRect();
-        const offset = y - box.top - box.height / 2;
-
-        if (offset < 0 && offset > closest.offset) {
-            return { offset: offset, element: child };
-        } else {
-            return closest;
+        function handleFiles(files) {
+            files.forEach(f => {
+                if (f.name.toLowerCase().endsWith(".pptx")) {
+                    filesArray.push({ id: Math.random().toString(36).substring(7), file: f });
+                } else {
+                    alert(`${f.name} is not a valid .pptx file.`);
+                }
+            });
+            renderFiles();
         }
-    }, { offset: Number.NEGATIVE_INFINITY }).element;
-}
 
-function updateArray() {
-    let newOrder = [];
-    document.querySelectorAll(".file").forEach(div => {
-        let file = filesArray.find(f => f.name === div.innerText);
-        if (file) newOrder.push(file);
-    });
-    filesArray = newOrder;
-}
+        function renderFiles() {
+            fileList.innerHTML = "";
+            
+            filesArray.forEach((item) => {
+                const f = item.file;
+                const div = document.createElement("div");
+                div.className = "file-item";
+                div.draggable = true;
+                div.dataset.id = item.id;
+                
+                // Convert bytes to readable size
+                let sizeStr = "";
+                if (f.size > 1024 * 1024) {
+                    sizeStr = (f.size / (1024 * 1024)).toFixed(2) + " MB";
+                } else {
+                    sizeStr = (f.size / 1024).toFixed(0) + " KB";
+                }
 
-function submitFiles() {
-    if (filesArray.length === 0) {
-        alert("Please select at least one PPTX file");
-        return;
-    }
+                div.innerHTML = `
+                    <div class="grip-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16" />
+                        </svg>
+                    </div>
+                    <div class="file-info">
+                        <div class="file-name" title="${f.name}">${f.name}</div>
+                        <div class="file-ext">${sizeStr} • PPTX</div>
+                    </div>
+                    <button class="remove-btn" onclick="removeFile('${item.id}', event)" title="Remove file">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                `;
 
-    let formData = new FormData();
-    filesArray.forEach(file => {
-        formData.append("files", file);
-    });
+                div.addEventListener("dragstart", () => {
+                    div.classList.add("dragging");
+                });
 
-    const btn = document.getElementById("mergeBtn");
-    btn.disabled = true;
-    btn.innerText = "Merging...";
+                div.addEventListener("dragend", () => {
+                    div.classList.remove("dragging");
+                    updateArray();
+                });
 
-    fetch("/", {
-        method: "POST",
-        body: formData
-    })
-    .then(res => {
-        if (!res.ok) {
-            throw new Error(`Server error: ${res.status}`);
+                fileList.appendChild(div);
+            });
+
+            updateUIState();
         }
-        return res.blob();
-    })
-    .then(blob => {
-        let url = window.URL.createObjectURL(blob);
-        let a = document.createElement("a");
-        a.href = url;
-        a.download = "merged.pptx";
-        a.click();
-        window.URL.revokeObjectURL(url);
-    })
-    .catch(error => {
-        alert("Error merging files: " + error.message);
-        console.error(error);
-    })
-    .finally(() => {
-        btn.disabled = filesArray.length === 0;
-        btn.innerText = "Merge";
-    });
-}
-</script>
 
+        function removeFile(id, event) {
+            event.stopPropagation();
+            filesArray = filesArray.filter(item => item.id !== id);
+            renderFiles();
+        }
+
+        function updateUIState() {
+            if (filesArray.length > 0) {
+                fileCountDiv.innerText = `${filesArray.length} file${filesArray.length > 1 ? 's' : ''} ready for merge`;
+                mergeBtn.disabled = false;
+            } else {
+                fileCountDiv.innerText = "";
+                mergeBtn.disabled = true;
+            }
+        }
+
+        fileList.addEventListener("dragover", e => {
+            e.preventDefault();
+            const dragging = document.querySelector(".dragging");
+            if (!dragging) return;
+            
+            const afterElement = getDragAfterElement(fileList, e.clientY);
+            
+            if (afterElement == null) {
+                fileList.appendChild(dragging);
+            } else {
+                fileList.insertBefore(dragging, afterElement);
+            }
+        });
+
+        function getDragAfterElement(container, y) {
+            const elements = [...container.querySelectorAll(".file-item:not(.dragging)")];
+            
+            return elements.reduce((closest, child) => {
+                const box = child.getBoundingClientRect();
+                const offset = y - box.top - box.height / 2;
+                
+                if (offset < 0 && offset > closest.offset) {
+                    return { offset: offset, element: child };
+                } else {
+                    return closest;
+                }
+            }, { offset: Number.NEGATIVE_INFINITY }).element;
+        }
+
+        function updateArray() {
+            let newOrder = [];
+            document.querySelectorAll(".file-item").forEach(div => {
+                const id = div.dataset.id;
+                const item = filesArray.find(item => item.id === id);
+                if (item) newOrder.push(item);
+            });
+            filesArray = newOrder;
+        }
+
+        function submitFiles() {
+            if (filesArray.length === 0) return;
+            
+            let formData = new FormData();
+            filesArray.forEach(item => {
+                formData.append("files", item.file);
+            });
+
+            mergeBtn.disabled = true;
+            mergeBtn.classList.add("loading");
+
+            fetch("/", {
+                method: "POST",
+                body: formData
+            })
+            .then(res => {
+                if (!res.ok) throw new Error(`Server error: ${res.status}`);
+                return res.blob();
+            })
+            .then(blob => {
+                let url = window.URL.createObjectURL(blob);
+                let a = document.createElement("a");
+                a.href = url;
+                a.download = "Merged_Presentation.pptx";
+                a.click();
+                window.URL.revokeObjectURL(url);
+            })
+            .catch(error => {
+                alert("Error merging files. Check console for details.");
+                console.error(error);
+            })
+            .finally(() => {
+                mergeBtn.disabled = filesArray.length === 0;
+                mergeBtn.classList.remove("loading");
+            });
+        }
+    </script>
 </body>
 </html>
