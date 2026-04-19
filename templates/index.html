@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PPTX Merger</title>
+    <style>
+        body { font-family: Arial; padding: 20px; }
+        #dropzone {
+            border: 2px dashed #aaa;
+            padding: 30px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .file {
+            padding: 10px;
+            border: 1px solid #ccc;
+            margin: 5px;
+            cursor: move;
+            background: #f9f9f9;
+        }
+        .file.dragging {
+            opacity: 0.5;
+            background: #e0e0e0;
+        }
+        #fileCount {
+            margin: 10px 0;
+            font-size: 14px;
+            color: #666;
+        }
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+
+<h2>PPTX Merger (Local)</h2>
+
+<div id="dropzone">Drag & Drop PPTX files here</div>
+<div id="fileList"></div>
+<div id="fileCount"></div>
+
+<br>
+<button id="mergeBtn" onclick="submitFiles()">Merge</button>
+
+<script>
+let dropzone = document.getElementById("dropzone");
+let fileList = document.getElementById("fileList");
+
+let filesArray = [];
+
+dropzone.addEventListener("dragover", e => {
+    e.preventDefault();
+});
+
+dropzone.addEventListener("drop", e => {
+    e.preventDefault();
+    let files = Array.from(e.dataTransfer.files);
+
+    files.forEach(f => {
+        if (f.name.endsWith(".pptx")) {
+            filesArray.push(f);
+        }
+    });
+
+    renderFiles();
+});
+
+function renderFiles() {
+    fileList.innerHTML = "";
+
+    filesArray.forEach((file, index) => {
+        let div = document.createElement("div");
+        div.className = "file";
+        div.draggable = true;
+        div.innerText = file.name;
+
+        div.addEventListener("dragstart", () => {
+            div.classList.add("dragging");
+        });
+
+        div.addEventListener("dragend", () => {
+            div.classList.remove("dragging");
+        });
+
+        fileList.appendChild(div);
+    });
+
+    // Update file count
+    const countDiv = document.getElementById("fileCount");
+    if (filesArray.length > 0) {
+        countDiv.innerText = `Selected: ${filesArray.length} file(s)`;
+        document.getElementById("mergeBtn").disabled = false;
+    } else {
+        countDiv.innerText = "";
+        document.getElementById("mergeBtn").disabled = true;
+    }
+}
+
+fileList.addEventListener("dragover", e => {
+    e.preventDefault();
+    const dragging = document.querySelector(".dragging");
+    const afterElement = getDragAfterElement(fileList, e.clientY);
+
+    if (afterElement == null) {
+        fileList.appendChild(dragging);
+    } else {
+        fileList.insertBefore(dragging, afterElement);
+    }
+
+    updateArray();
+});
+
+function getDragAfterElement(container, y) {
+    const elements = [...container.querySelectorAll(".file:not(.dragging)")];
+
+    return elements.reduce((closest, child) => {
+        const box = child.getBoundingClientRect();
+        const offset = y - box.top - box.height / 2;
+
+        if (offset < 0 && offset > closest.offset) {
+            return { offset: offset, element: child };
+        } else {
+            return closest;
+        }
+    }, { offset: Number.NEGATIVE_INFINITY }).element;
+}
+
+function updateArray() {
+    let newOrder = [];
+    document.querySelectorAll(".file").forEach(div => {
+        let file = filesArray.find(f => f.name === div.innerText);
+        if (file) newOrder.push(file);
+    });
+    filesArray = newOrder;
+}
+
+function submitFiles() {
+    if (filesArray.length === 0) {
+        alert("Please select at least one PPTX file");
+        return;
+    }
+
+    let formData = new FormData();
+    filesArray.forEach(file => {
+        formData.append("files", file);
+    });
+
+    const btn = document.getElementById("mergeBtn");
+    btn.disabled = true;
+    btn.innerText = "Merging...";
+
+    fetch("/", {
+        method: "POST",
+        body: formData
+    })
+    .then(res => {
+        if (!res.ok) {
+            throw new Error(`Server error: ${res.status}`);
+        }
+        return res.blob();
+    })
+    .then(blob => {
+        let url = window.URL.createObjectURL(blob);
+        let a = document.createElement("a");
+        a.href = url;
+        a.download = "merged.pptx";
+        a.click();
+        window.URL.revokeObjectURL(url);
+    })
+    .catch(error => {
+        alert("Error merging files: " + error.message);
+        console.error(error);
+    })
+    .finally(() => {
+        btn.disabled = filesArray.length === 0;
+        btn.innerText = "Merge";
+    });
+}
+</script>
+
+</body>
+</html>
