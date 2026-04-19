@@ -16,7 +16,7 @@ PPTFusion is a beautiful, locally-hosted web application that allows you to seam
 
 - Python 3.8+
 - `flask`
-- `python-pptx`
+- `pywin32` (Requires Microsoft PowerPoint installed locally)
 
 ## Installation & Setup
 
@@ -24,7 +24,7 @@ PPTFusion is a beautiful, locally-hosted web application that allows you to seam
 2. **Install Dependencies**
    Run the following command in the project directory:
    ```bash
-   pip install flask python-pptx
+   pip install flask pywin32
    ```
 3. **Run the Application**
    ```bash

@@ -1,8 +1,8 @@
 import os
 import uuid
-from copy import deepcopy
 from flask import Flask, request, render_template, send_file, redirect
-from pptx import Presentation
+import pythoncom
+import win32com.client
 
 UPLOAD_FOLDER = "uploads"
 OUTPUT_FOLDER = "output"
@@ -13,35 +13,36 @@ os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 app = Flask(__name__)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
-
-def copy_slide(slide, target_prs):
-    layout = target_prs.slide_layouts[6]  # blank
-    new_slide = target_prs.slides.add_slide(layout)
-
-    for shape in slide.shapes:
-        new_el = deepcopy(shape.element)
-        new_slide.shapes._spTree.insert_element_before(new_el, 'p:extLst')
-
-
 def merge_pptx(file_paths):
-    merged = Presentation()
+    # Initialize PowerPoint via COM
+    pythoncom.CoInitialize() # Needed for multi-threading in Flask
+    try:
+        powerpoint = win32com.client.Dispatch("PowerPoint.Application")
+    except Exception as e:
+        print(f"Failed to start PowerPoint via COM. Is Microsoft Office installed? Error: {e}")
+        return None
+        
+    output_file = os.path.abspath(os.path.join(OUTPUT_FOLDER, f"merged_{uuid.uuid4().hex}.pptx"))
+    
+    try:
+        # Open the first presentation as the base
+        base_prs_path = os.path.abspath(file_paths[0])
+        prs = powerpoint.Presentations.Open(base_prs_path, WithWindow=False)
+        
+        # Insert slides from remaining files
+        for path in file_paths[1:]:
+            abs_path = os.path.abspath(path)
+            insert_index = prs.Slides.Count
+            prs.Slides.InsertFromFile(abs_path, insert_index)
+            
+        prs.SaveAs(output_file)
+        prs.Close()
+    except Exception as e:
+        print(f"Error merging files: {e}")
+        output_file = None
+    finally:
+        pythoncom.CoUninitialize()
 
-    # remove default slide
-    if len(merged.slides) > 0:
-        r_id = merged.slides._sldIdLst[0].rId
-        merged.part.drop_rel(r_id)
-        del merged.slides._sldIdLst[0]
-
-    for path in file_paths:
-        try:
-            prs = Presentation(path)
-            for slide in prs.slides:
-                copy_slide(slide, merged)
-        except Exception as e:
-            print(f"Error processing {path}: {e}")
-
-    output_file = os.path.join(OUTPUT_FOLDER, f"merged_{uuid.uuid4().hex}.pptx")
-    merged.save(output_file)
     return output_file
 
 
@@ -75,6 +76,9 @@ def index():
                 os.remove(path)
             except:
                 pass
+                
+        if not merged_file:
+            return "Failed to merge presentations. Ensure PowerPoint is installed and running correctly.", 500
 
         return send_file(merged_file, as_attachment=True)
 
